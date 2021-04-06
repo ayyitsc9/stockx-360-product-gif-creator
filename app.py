@@ -87,7 +87,7 @@ class GIFCreator:
             self.filenames.append(filename)
             if Path('./overlay.png').exists():
                 im1 = Image.open(filename)
-                im2 = Image.open('overlay.png').resize(im1.size)
+                im2 = Image.open('overlay.png').resize(im1.size).convert(mode=im1.mode)
                 try:
                     im = Image.blend(im1, im2, 0.1)
                     im.save(filename, quality=100)
