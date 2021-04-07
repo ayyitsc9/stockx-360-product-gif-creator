@@ -44,11 +44,11 @@ class GIFCreator:
             Logger.error("Link provided is invalid!")
 
     def detect_format(self):
-        regex = r"(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
-        match = re.search(regex,self.product_to_search)
-        if match != None and 'stockx.com/' in self.product_to_search:
+        url_regex = r"(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
+        match = re.search("((https|http)://stockx.com/.{1,})",self.product_to_search)
+        if match != None:
             return "Link"
-        elif match != None:
+        elif match == None and re.search(url_regex,self.product_to_search):
             return "Invalid Link"
         else:
             return "Name"
@@ -62,13 +62,16 @@ class GIFCreator:
         byte_payload = bytes(json_string, 'utf-8')
         algolia = {"x-algolia-agent": "Algolia%20for%20JavaScript%20(4.8.4)%3B%20Browser", "x-algolia-application-id": "XW7SBCT9V6", "x-algolia-api-key": "6b5e76b49705eb9f51a06d3c82f7acee"}
         r = requests.post("https://xw7sbct9v6-dsn.algolia.net/1/indexes/products/query", params=algolia, data=byte_payload, timeout=30)
-        try:
-            results = r.json()["hits"][0]
-            Logger.normal(f"Product found : {results['name']}")
-            return results['url']
-        except IndexError:
-            Logger.error(f"Did not find any products matching your query! Query : {words}")
-            return None
+        if r.status_code == 200:
+            try:
+                results = r.json()["hits"][0]
+                Logger.normal(f"Product found : {results['name']}")
+                return results['url']
+            except IndexError:
+                Logger.error(f"Did not find any products matching your query! Query : {words}")
+                return None
+        else:
+            Logger.error(f"Failed to get product link! Status Code : {r.status_code}")
 
     def get_image_urls(self):
         r = requests.get(self.api_url, headers=headers)
@@ -87,14 +90,14 @@ class GIFCreator:
             self.filenames.append(filename)
             if Path('./overlay.png').exists():
                 im1 = Image.open(filename)
-                im2 = Image.open('overlay.png').resize(im1.size)
+                im2 = Image.open('overlay.png').resize(im1.size).convert(mode=im1.mode)
                 try:
                     im = Image.blend(im1, im2, 0.1)
                     im.save(filename, quality=100)
                 except ValueError:
                     Logger.error("Could not blend image with overlay. Images do not match. Try a different image! Proceeding with saving without overlay...")
         else:
-            print(f"Failed to open image url! Status Code : {r.status_code}")
+            Logger.error(f"Failed to download image! Status Code : {r.status_code}")
 
     def generate_gif(self):
         images = [imageio.imread(filename) for filename in self.filenames]
@@ -135,14 +138,17 @@ headers = {
 }
 
 while True:
-    Logger.other("Note : Search Query can either be product keywords or a StockX direct link!")
+    print(Style.RESET_ALL)
+    print("Notes")
+    print("- Search Query can either be product keywords or a StockX direct link!")
+    print("- Overlay image must be PNG and named 'overlay.png'. For best results, resize it to 1118x745!")
     user_input = input("Enter Search Query : ")
     start = time.time()
     GIFCreator(user_input)
     end = time.time()
-    print(f"Execution time : {end-start}s")
+    Logger.success(f"Execution time : {end-start}s")
     
 
 # TO DO
-# Make some static methods instead of class methods if it isn't needed to be a class method
-# Improve regex to only accept stockx links
+# Refactor Code
+# Add notes
